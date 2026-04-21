@@ -6,7 +6,7 @@ import requests
 def call_ollama(prompt: str, model: str = "gemma4:31b-cloud") -> str:
     # (Existing implementation of call_ollama remains the same)
     api_key = os.environ.get("OLLAMA_API_KEY")
-    url = "https://ollama.cloud/api/generate" 
+    url = "https://ollama-cloud.at.mban.ca/api/generate" 
     payload = {"model": model, "prompt": prompt, "stream": False}
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     # ... rest of the function ...
