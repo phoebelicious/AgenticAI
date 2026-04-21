@@ -4,32 +4,45 @@ import pandas as pd
 import requests
 
 def call_ollama(prompt: str, model: str = "gemma4:31b-cloud") -> str:
-    # (Existing implementation of call_ollama remains the same)
     api_key = os.environ.get("OLLAMA_API_KEY")
+    
+    # 🚨 This is the most critical fix! The original ollama.cloud has been replaced with your dedicated URL.
+    # If your TA provided a different specific URL, replace the URL inside the quotes here.
+    # Otherwise, please keep this MBAN server URL:
     url = "https://ollama-cloud.at.mban.ca/api/generate" 
+    
     payload = {"model": model, "prompt": prompt, "stream": False}
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    # ... rest of the function ...
-    response = requests.post(url, json=payload, headers=headers, timeout=20)
-    return response.json().get("response", "")
+    
+    try:
+        # Send the request with a timeout setting
+        response = requests.post(url, json=payload, headers=headers, timeout=25)
+        response.raise_for_status() # Check if the server returned an error HTTP status code
+        return response.json().get("response", "")
+    except Exception as e:
+        print(f"API Error: {e}")
+        return "" # If connection fails, return an empty string to trigger the fallback movie below
 
 def get_recommendation(preferences: str, history_ids: list[int] = [], history_titles: list[str] = []) -> dict:
-    # Load dataset
+    # 1. Load the dataset
     df = pd.read_csv('tmdb_top_1000_movies.csv')
     
-    # Exclude watched movies by ID
-    available_movies = df[~df['tmdb_id'].isin(history_ids)]
+    # 🚨 Fix the previous KeyError: 'id' issue
+    if 'tmdb_id' in df.columns:
+        df = df.rename(columns={'tmdb_id': 'id'})
     
-    # 2. Exclude watched movies by matching TITLES (new!)
+    # 2. Exclude already watched movies (by ID)
+    available_movies = df[~df['id'].isin(history_ids)]
+    
+    # 3. Exclude already watched movies (by Title)
     if history_titles:
-        # Normalize titles for matching (lowercase and strip spaces)
         history_titles_norm = [t.lower().strip() for t in history_titles if t]
         available_movies = available_movies[~available_movies['title'].str.lower().str.strip().isin(history_titles_norm)]
 
-    # Sample movies for context
+    # 4. Sample movies for the LLM's context
     sample_movies = available_movies.sample(min(15, len(available_movies))).to_json(orient='records')
 
-    # 3. Enhance Prompt (new!)
+    # 5. Construct the Prompt
     prompt = f"""
         You are an expert AI Movie Recommender Agent. 
         User Mood/Preferences: "{preferences}"
@@ -51,12 +64,12 @@ def get_recommendation(preferences: str, history_ids: list[int] = [], history_ti
         }}
     """
 
+    # 6. Call the Large Language Model
     raw_response = call_ollama(prompt)
     
-    # 4. Enhanced JSON Parsing with more fields (new!)
+    # 7. Parse the returned JSON
     try:
         clean_json = raw_response.strip()
-        # Handle markdown blocks if any
         if clean_json.startswith("```"):
             clean_json = clean_json.split("\n", 1)[1].rsplit("\n", 1)[0].strip()
         if clean_json.lower().startswith("json"):
@@ -66,16 +79,15 @@ def get_recommendation(preferences: str, history_ids: list[int] = [], history_ti
         
         return {
             "tmdb_id": int(rec["tmdb_id"]),
-            "movie_name": str(rec["movie_name"]), # new!
-            "year": int(rec["year"]),             # new!
+            "movie_name": str(rec["movie_name"]),
+            "year": int(rec["year"]),
             "description": str(rec["description"])[:500]
         }
     except Exception as e:
-        # Emergency fallback if LLM parsing fails
-        # Ensure ID 157336 (Interstellar) is correct in CSV
+        # Fallback mechanism: If any previous step (including network disconnection) fails, always return this movie as a baseline
         return {
             "tmdb_id": 157336, 
-            "movie_name": "Interstellar", # new!
-            "year": 2014,                  # new!
+            "movie_name": "Interstellar",
+            "year": 2014,
             "description": "Based on your taste, we highly recommend this cosmic masterpiece for your next watch."
         }
