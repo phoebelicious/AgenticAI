@@ -14,7 +14,7 @@ def get_recommendation(preferences: str, history_ids: list[int] = [], history_ti
     df = pd.read_csv('tmdb_top_1000_movies.csv')
     
     # Exclude watched movies by ID
-    available_movies = df[~df['id'].isin(history_ids)]
+    available_movies = df[~df['tmdb_id'].isin(history_ids)]
     
     # 2. Exclude watched movies by matching TITLES (new!)
     if history_titles:
