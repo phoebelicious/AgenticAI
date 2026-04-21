@@ -102,7 +102,22 @@ def get_recommendation(preferences: str, history: list[str], history_ids: list[i
     # 7. Robust parsing of JSON response [cite: 50]
     try:
         clean_json = raw_response.strip()
-        # Handle cases where LLM returns Markdown code blocks
+        # Handle Markdown code blocks
         if clean_json.startswith("```"):
-            clean_json = clean_json.split("\n", 1)[1].rsplit("\n", 1)[0].strip()
-        if clean_json.startswith("js
+            # Remove the first and last lines (the backticks)
+            lines = clean_json.splitlines()
+            if len(lines) > 2:
+                clean_json = "\n".join(lines[1:-1]).strip()
+            else:
+                clean_json = clean_json.replace("```", "").strip()
+        
+        # Remove leading "json" identifier if present
+        if clean_json.lower().startswith("json"):
+            clean_json = clean_json[4:].strip()
+
+        rec = json.loads(clean_json)
+        
+        return {
+            "tmdb_id": int(rec["tmdb_id"]),
+            "description": str(rec["description"])[:500]
+        }
